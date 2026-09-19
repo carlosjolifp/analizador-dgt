@@ -1,0 +1,1518 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full bg-slate-900">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Analizador de Matriculaciones DGT</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- JSZip CDN para descompresión directa de archivos .zip -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  
+  <!-- Google Fonts: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+          },
+          colors: {
+            dgt: {
+              blue: '#003B46',
+              navy: '#07575B',
+              teal: '#66A5AD',
+              light: '#C4DFE6',
+              accent: '#0070F3',
+              dark: '#0B132B'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    /* Custom scrollbars */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0f172a;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #475569;
+    }
+    .drag-over {
+      border-color: #3b82f6 !important;
+      background-color: rgba(59, 130, 246, 0.08) !important;
+    }
+  </style>
+</head>
+<body class="h-full text-slate-100 font-sans flex flex-col bg-slate-950">
+
+  <header class="bg-slate-900 border-b border-slate-800 sticky top-0 z-30 shadow-lg">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex flex-col sm:flex-row items-center justify-between py-3 sm:py-0 sm:h-16 gap-3">
+        <div class="flex items-center space-x-3 w-full sm:w-auto justify-between sm:justify-start">
+          <div class="flex items-center space-x-3">
+            <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-blue-600 flex items-center justify-center font-bold text-lg sm:text-xl text-white shadow-md shadow-blue-500/20">
+              DGT
+            </div>
+            <div>
+              <h1 class="text-base sm:text-lg font-bold tracking-tight text-white flex items-center gap-2">
+                Analizador DGT
+                <span id="periodBadge" class="text-[10px] sm:text-xs bg-blue-500/10 text-blue-400 border border-blue-500/30 px-2 py-0.5 rounded-full font-mono">MATRABA</span>
+              </h1>
+              <p class="text-[10px] sm:text-xs text-slate-400">Especificación Oficial de Ancho Fijo</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex items-center space-x-2 w-full sm:w-auto justify-end overflow-x-auto pb-1 sm:pb-0">
+          <button id="btnSampleData" class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-blue-400 bg-blue-950/60 hover:bg-blue-900/80 border border-blue-800/80 rounded-lg transition-all shadow-sm whitespace-nowrap">
+            <i class="fa-solid fa-database text-blue-400"></i>
+            <span>Ejemplo</span>
+          </button>
+          <button id="btnExportCSV" disabled class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-400 bg-slate-800 border border-slate-700 rounded-lg opacity-50 cursor-not-allowed transition-all whitespace-nowrap">
+            <i class="fa-solid fa-file-csv"></i>
+            <span>CSV</span>
+          </button>
+          <button id="btnExportJSON" disabled class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-400 bg-slate-800 border border-slate-700 rounded-lg opacity-50 cursor-not-allowed transition-all whitespace-nowrap">
+            <i class="fa-solid fa-file-code"></i>
+            <span>JSON</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6">
+
+    <!-- Panel de Descarga Rápida DGT -->
+    <section class="bg-slate-900/80 border border-slate-800 rounded-xl p-3.5 sm:p-4 flex flex-col md:flex-row items-center justify-between gap-3 shadow-md">
+      <div class="flex items-center space-x-3 w-full md:w-auto">
+        <div class="w-9 h-9 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20 flex items-center justify-center shrink-0">
+          <i class="fa-solid fa-cloud-arrow-down text-base"></i>
+        </div>
+        <div>
+          <h4 class="text-xs sm:text-sm font-bold text-white">Descargar Fichero Oficial DGT (MATRABA)</h4>
+          <p class="text-[10px] sm:text-xs text-slate-400">Obtén el archivo .zip oficial de la DGT para procesarlo directamente</p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2 w-full md:w-auto justify-between md:justify-end">
+        <select id="downloadMonth" class="bg-slate-950 border border-slate-700 text-xs text-slate-200 rounded-lg px-2 py-1.5 outline-none focus:border-blue-500 flex-1 md:flex-none">
+          <option value="01">01 - Enero</option>
+          <option value="02">02 - Febrero</option>
+          <option value="03">03 - Marzo</option>
+          <option value="04">04 - Abril</option>
+          <option value="05">05 - Mayo</option>
+          <option value="06">06 - Junio</option>
+          <option value="07">07 - Julio</option>
+          <option value="08">08 - Agosto</option>
+          <option value="09">09 - Septiembre</option>
+          <option value="10">10 - Octubre</option>
+          <option value="11">11 - Noviembre</option>
+          <option value="12">12 - Diciembre</option>
+        </select>
+
+        <select id="downloadYear" class="bg-slate-950 border border-slate-700 text-xs text-slate-200 rounded-lg px-2 py-1.5 outline-none focus:border-blue-500">
+          <option value="2026">2026</option>
+          <option value="2025">2025</option>
+          <option value="2024">2024</option>
+        </select>
+
+        <button id="btnDownloadDGT" class="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5 whitespace-nowrap shadow-sm">
+          <i class="fa-solid fa-download"></i> Descargar .ZIP
+        </button>
+      </div>
+    </section>
+
+    <!-- Zona de Carga de Archivos (.txt o .zip) -->
+    <section id="uploadSection" class="relative group">
+      <div id="dropZone" class="border-2 border-dashed border-slate-700 hover:border-blue-500/50 bg-slate-900/60 rounded-xl p-6 sm:p-8 text-center transition-all duration-200 cursor-pointer shadow-inner">
+        <input type="file" id="fileInput" accept=".txt,.dat,.zip" class="hidden" />
+        <div class="flex flex-col items-center justify-center space-y-2 sm:space-y-3">
+          <div class="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center group-hover:scale-110 transition-transform">
+            <i class="fa-solid fa-cloud-arrow-up text-xl sm:text-2xl text-blue-400"></i>
+          </div>
+          <div>
+            <p class="text-xs sm:text-sm font-semibold text-slate-200">
+              Arrastra o selecciona tu archivo <code class="bg-slate-800 text-blue-300 px-1.5 py-0.5 rounded text-[11px]">.txt</code> o <code class="bg-slate-800 text-blue-300 px-1.5 py-0.5 rounded text-[11px]">.zip</code>
+            </p>
+            <p class="text-[10px] sm:text-xs text-slate-400 mt-1">Soporta descompresión automática en memoria para archivos comprimidos de la DGT</p>
+          </div>
+          <button type="button" onclick="document.getElementById('fileInput').click()" class="px-3.5 py-1.5 sm:px-4 sm:py-2 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded-lg text-xs font-medium text-slate-200 shadow-sm transition-colors">
+            Examinar archivo local
+          </button>
+        </div>
+      </div>
+      <!-- Processing Loader Overlay -->
+      <div id="loadingOverlay" class="hidden absolute inset-0 bg-slate-900/90 backdrop-blur-sm rounded-xl flex flex-col items-center justify-center space-y-3 z-10">
+        <div class="w-8 h-8 border-3 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+        <p id="loadingStatusText" class="text-xs sm:text-sm font-medium text-slate-200">Procesando y validando registros DGT...</p>
+      </div>
+    </section>
+
+    <!-- Dashboard KPI -->
+    <section id="kpiDashboard" class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 hidden">
+      <!-- Total Registros -->
+      <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-3.5 sm:p-4 flex items-center justify-between">
+        <div>
+          <p class="text-[10px] sm:text-xs font-medium text-slate-400">Total Matriculaciones</p>
+          <h2 id="kpiTotalCount" class="text-xl sm:text-2xl font-bold text-white mt-0.5 sm:mt-1">0</h2>
+          <p id="kpiSubPeriod" class="text-[10px] text-slate-500 mt-0.5 sm:mt-1">Registros cargados</p>
+        </div>
+        <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20 flex items-center justify-center shrink-0">
+          <i class="fa-solid fa-car-side text-sm sm:text-lg"></i>
+        </div>
+      </div>
+
+      <!-- Ratio Nuevo / Usado -->
+      <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-3.5 sm:p-4 flex items-center justify-between">
+        <div>
+          <p class="text-[10px] sm:text-xs font-medium text-slate-400">Nuevos vs Usados</p>
+          <div class="flex items-baseline space-x-1.5 sm:space-x-2 mt-0.5 sm:mt-1">
+            <span id="kpiNewPct" class="text-xl sm:text-2xl font-bold text-emerald-400">0%</span>
+            <span id="kpiUsedPct" class="text-[10px] sm:text-xs text-amber-400 font-semibold">0% us</span>
+          </div>
+          <p id="kpiNewCountText" class="text-[10px] text-slate-500 mt-0.5 sm:mt-1">0 Nuevos / 0 Usados</p>
+        </div>
+        <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center justify-center shrink-0">
+          <i class="fa-solid fa-sparkles text-sm sm:text-lg"></i>
+        </div>
+      </div>
+
+      <!-- Electrificados / Eco -->
+      <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-3.5 sm:p-4 flex items-center justify-between">
+        <div>
+          <p class="text-[10px] sm:text-xs font-medium text-slate-400">Electrificados / Cero / ECO</p>
+          <h2 id="kpiEcoPct" class="text-xl sm:text-2xl font-bold text-teal-400 mt-0.5 sm:mt-1">0%</h2>
+          <p id="kpiEcoCountText" class="text-[10px] text-slate-500 mt-0.5 sm:mt-1">BEV + PHEV + HEV</p>
+        </div>
+        <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-teal-500/10 text-teal-400 border border-teal-500/20 flex items-center justify-center shrink-0">
+          <i class="fa-solid fa-bolt text-sm sm:text-lg"></i>
+        </div>
+      </div>
+
+      <!-- Particulares vs Empresa -->
+      <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-3.5 sm:p-4 flex items-center justify-between">
+        <div>
+          <p class="text-[10px] sm:text-xs font-medium text-slate-400">Titular Persona Física</p>
+          <h2 id="kpiPersonaFisicaPct" class="text-xl sm:text-2xl font-bold text-purple-400 mt-0.5 sm:mt-1">0%</h2>
+          <p id="kpiPersonaFisicaText" class="text-[10px] text-slate-500 mt-0.5 sm:mt-1">vs Empresa/Jurídica</p>
+        </div>
+        <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-purple-500/10 text-purple-400 border border-purple-500/20 flex items-center justify-center shrink-0">
+          <i class="fa-solid fa-users text-sm sm:text-lg"></i>
+        </div>
+      </div>
+    </section>
+
+    <!-- Gráficos -->
+    <section id="chartsSection" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 hidden">
+      <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-3.5 sm:p-4 flex flex-col justify-between">
+        <h3 class="text-[11px] sm:text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2 mb-2">
+          <i class="fa-solid fa-gas-pump text-blue-400"></i> Propulsión
+        </h3>
+        <div class="h-44 sm:h-52 relative">
+          <canvas id="chartPropulsion"></canvas>
+        </div>
+      </div>
+
+      <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-3.5 sm:p-4 flex flex-col justify-between">
+        <h3 class="text-[11px] sm:text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2 mb-2">
+          <i class="fa-solid fa-award text-amber-400"></i> Top 5 Marcas
+        </h3>
+        <div class="h-44 sm:h-52 relative">
+          <canvas id="chartBrands"></canvas>
+        </div>
+      </div>
+
+      <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-3.5 sm:p-4 flex flex-col justify-between">
+        <h3 class="text-[11px] sm:text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2 mb-2">
+          <i class="fa-solid fa-car text-purple-400"></i> Top 5 Modelos
+        </h3>
+        <div class="h-44 sm:h-52 relative">
+          <canvas id="chartModels"></canvas>
+        </div>
+      </div>
+
+      <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-3.5 sm:p-4 flex flex-col justify-between">
+        <h3 class="text-[11px] sm:text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2 mb-2">
+          <i class="fa-solid fa-truck-pickup text-emerald-400"></i> Tipo Vehículo
+        </h3>
+        <div class="h-44 sm:h-52 relative">
+          <canvas id="chartTypes"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <!-- Filtros y Opciones -->
+    <section id="filterSection" class="bg-slate-900/80 border border-slate-800 rounded-xl p-3.5 sm:p-4 space-y-4 hidden">
+      <div class="flex flex-col lg:flex-row lg:items-center justify-between border-b border-slate-800 pb-3 gap-3">
+        <h3 class="text-xs sm:text-sm font-semibold text-slate-200 flex items-center gap-2">
+          <i class="fa-solid fa-filter text-blue-400"></i> Filtros y Vista
+        </h3>
+
+        <div class="flex flex-wrap items-center gap-2 sm:gap-3">
+          <!-- Checkbox Excluir Scooters -->
+          <label class="inline-flex items-center cursor-pointer bg-slate-950 border border-slate-800 px-2.5 py-1.5 rounded-lg text-xs hover:border-slate-700 transition-colors">
+            <input type="checkbox" id="chkExcludeScooters" class="rounded bg-slate-800 border-slate-700 text-blue-500 focus:ring-0 focus:ring-offset-0">
+            <span class="ml-2 font-medium text-slate-200 flex items-center gap-1.5 text-[11px] sm:text-xs">
+              <i class="fa-solid fa-motorcycle text-amber-400"></i> Excluir Scooters (&le;125cc)
+            </span>
+          </label>
+
+          <!-- Botones Agrupar Vista -->
+          <div class="flex items-center bg-slate-950 border border-slate-800 rounded-lg p-0.5 text-xs">
+            <span class="px-2 text-slate-400 font-medium hidden sm:inline"><i class="fa-solid fa-layer-group text-blue-400 mr-1"></i>Vista:</span>
+            <button id="btnGroupNone" class="group-btn active px-2 py-1 rounded-md text-[11px] sm:text-xs font-medium bg-blue-600 text-white transition-colors">Detalle</button>
+            <button id="btnGroupMarca" class="group-btn px-2 py-1 rounded-md text-[11px] sm:text-xs font-medium text-slate-400 hover:text-white transition-colors">Por Marca</button>
+            <button id="btnGroupModelo" class="group-btn px-2 py-1 rounded-md text-[11px] sm:text-xs font-medium text-slate-400 hover:text-white transition-colors">Por Modelo</button>
+          </div>
+
+          <button id="btnResetFilters" class="text-xs text-slate-400 hover:text-white flex items-center gap-1 transition-colors px-2 py-1.5 rounded-lg hover:bg-slate-800 ml-auto lg:ml-0">
+            <i class="fa-solid fa-rotate-right"></i>
+            <span class="hidden sm:inline">Limpiar</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
+        <!-- Búsqueda General -->
+        <div>
+          <label class="block text-[11px] text-slate-400 mb-1">Búsqueda General</label>
+          <div class="relative">
+            <i class="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-xs text-slate-500"></i>
+            <input type="text" id="filterText" placeholder="Marca, Modelo, Localidad..." class="w-full bg-slate-950 border border-slate-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 rounded-lg pl-8 pr-3 py-1.5 text-xs text-white placeholder-slate-500 outline-none">
+          </div>
+        </div>
+
+        <!-- Tipo de Vehículo -->
+        <div>
+          <label class="block text-[11px] text-slate-400 mb-1">Tipo de Vehículo</label>
+          <select id="filterTipo" class="w-full bg-slate-950 border border-slate-700 focus:border-blue-500 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 outline-none">
+            <option value="">Todos los Tipos</option>
+            <option value="TURISMO" selected>Turismo / Turismo Adaptado</option>
+            <option value="MOTOCICLETA">Motocicleta</option>
+            <option value="FURGONETA">Furgoneta / Combi</option>
+            <option value="CAMION">Camión / Furgón</option>
+            <option value="CICLOMOTOR">Ciclomotor</option>
+            <option value="TRACTOR">Tractor / Vehículo Agrícola</option>
+            <option value="OTROS">Otros / Remolques</option>
+          </select>
+        </div>
+
+        <!-- Propulsión -->
+        <div>
+          <label class="block text-[11px] text-slate-400 mb-1">Propulsión / Etiqueta</label>
+          <select id="filterPropulsion" class="w-full bg-slate-950 border border-slate-700 focus:border-blue-500 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 outline-none">
+            <option value="">Todas las Propulsiones</option>
+            <option value="GASOLINA">Gasolina</option>
+            <option value="DIESEL">Diésel</option>
+            <option value="BEV">Eléctrico Puro (BEV)</option>
+            <option value="PHEV">Híbrido Enchufable (PHEV)</option>
+            <option value="HEV">Híbrido No Enchufable (HEV)</option>
+            <option value="GLP">Gas Licuado (GLP)</option>
+            <option value="GNC">Gas Natural (GNC)</option>
+          </select>
+        </div>
+
+        <!-- Estado Nuevo / Usado -->
+        <div>
+          <label class="block text-[11px] text-slate-400 mb-1">Estado (Nuevo / Usado)</label>
+          <select id="filterEstado" class="w-full bg-slate-950 border border-slate-700 focus:border-blue-500 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 outline-none">
+            <option value="">Todos</option>
+            <option value="N">Nuevo (N)</option>
+            <option value="U">Usado (U)</option>
+          </select>
+        </div>
+
+        <!-- Titularidad -->
+        <div>
+          <label class="block text-[11px] text-slate-400 mb-1">Titular</label>
+          <select id="filterTitular" class="w-full bg-slate-950 border border-slate-700 focus:border-blue-500 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 outline-none">
+            <option value="">Todos</option>
+            <option value="D">Persona Física (D)</option>
+            <option value="X">Empresa / Jurídica (X)</option>
+          </select>
+        </div>
+
+        <!-- Provincia -->
+        <div>
+          <label class="block text-[11px] text-slate-400 mb-1">Provincia</label>
+          <select id="filterProvincia" class="w-full bg-slate-950 border border-slate-700 focus:border-blue-500 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 outline-none">
+            <option value="">Todas las Provincias</option>
+          </select>
+        </div>
+
+        <!-- Marca -->
+        <div>
+          <label class="block text-[11px] text-slate-400 mb-1">Marca</label>
+          <select id="filterMarca" class="w-full bg-slate-950 border border-slate-700 focus:border-blue-500 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 outline-none">
+            <option value="">Todas las Marcas</option>
+          </select>
+        </div>
+
+        <!-- Modelo -->
+        <div>
+          <label class="block text-[11px] text-slate-400 mb-1">Modelo</label>
+          <select id="filterModelo" class="w-full bg-slate-950 border border-slate-700 focus:border-blue-500 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 outline-none">
+            <option value="">Todos los Modelos</option>
+          </select>
+        </div>
+
+        <div class="sm:col-span-2 lg:col-span-4 flex items-center justify-end pt-2 border-t border-slate-800">
+          <div class="bg-slate-950 border border-slate-800 rounded-lg px-3 py-1 flex items-center gap-2 text-xs text-slate-400">
+            <span>Seleccionados:</span>
+            <span id="filterCountBadge" class="font-bold text-blue-400 text-xs sm:text-sm">0 / 0</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Tabla Dinámica -->
+    <section id="tableSection" class="bg-slate-900/80 border border-slate-800 rounded-xl overflow-hidden hidden shadow-lg">
+      <div class="overflow-x-auto w-full">
+        <table class="w-full text-left text-xs text-slate-300 min-w-[640px]">
+          <thead id="tableHead" class="bg-slate-950 text-slate-400 uppercase tracking-wider font-semibold border-b border-slate-800">
+            <!-- Renderizado dinámico -->
+          </thead>
+          <tbody id="tableBody" class="divide-y divide-slate-800/60 font-medium">
+            <!-- Renderizado por JS -->
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Barra de Paginación -->
+      <div class="bg-slate-950 px-3 py-2.5 sm:px-4 sm:py-3 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-400">
+        <div class="flex items-center space-x-2">
+          <span>Mostrar</span>
+          <select id="pageSizeSelect" class="bg-slate-900 border border-slate-700 rounded px-2 py-1 text-slate-200 outline-none">
+            <option value="15">15</option>
+            <option value="25" selected>25</option>
+            <option value="50">50</option>
+            <option value="100">100</option>
+          </select>
+          <span>filas</span>
+        </div>
+
+        <div class="flex items-center space-x-3 w-full sm:w-auto justify-between sm:justify-end">
+          <span id="pageInfoText">Página 1 de 1</span>
+          <div class="inline-flex rounded-lg border border-slate-800 bg-slate-900 p-0.5">
+            <button id="btnPrevPage" class="px-2.5 py-1 rounded-md hover:bg-slate-800 text-slate-300 disabled:opacity-30 disabled:cursor-not-allowed">
+              <i class="fa-solid fa-chevron-left"></i>
+            </button>
+            <button id="btnNextPage" class="px-2.5 py-1 rounded-md hover:bg-slate-800 text-slate-300 disabled:opacity-30 disabled:cursor-not-allowed">
+              <i class="fa-solid fa-chevron-right"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Modal Detalle -->
+  <div id="detailModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 hidden">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-2xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+      <div class="px-4 py-3 sm:px-6 sm:py-4 bg-slate-950 border-b border-slate-800 flex items-center justify-between">
+        <div class="flex items-center gap-2.5">
+          <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20 flex items-center justify-center shrink-0">
+            <i class="fa-solid fa-file-contract text-xs sm:text-sm"></i>
+          </div>
+          <div>
+            <h3 class="text-sm sm:text-base font-bold text-white" id="modalTitle">Ficha Técnica DGT</h3>
+            <p class="text-[10px] sm:text-xs text-slate-400" id="modalSubTitle">Detalle de registro MATRABA</p>
+          </div>
+        </div>
+        <button onclick="closeModal()" class="text-slate-400 hover:text-white w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-slate-800/50 hover:bg-slate-800 flex items-center justify-center transition-colors">
+          <i class="fa-solid fa-xmark text-sm"></i>
+        </button>
+      </div>
+
+      <div class="p-4 sm:p-6 overflow-y-auto space-y-4 text-xs" id="modalContent">
+        <!-- Contenido dinámico -->
+      </div>
+
+      <div class="px-4 py-2.5 sm:px-6 sm:py-3 bg-slate-950 border-t border-slate-800 flex justify-end">
+        <button onclick="closeModal()" class="px-4 py-1.5 sm:py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-lg transition-colors">
+          Cerrar
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const CLASE_MATRICULA = {
+      '0': 'Ordinaria', '1': 'Turística', '2': 'Remolque',
+      '3': 'Diplomática', '5': 'Vehículo Especial', '6': 'Ciclomotor', '8': 'Histórica'
+    };
+
+    const PROCEDENCIA_ITV = {
+      '0': 'Nacional', '1': 'Importación no UE', '3': 'Importación UE'
+    };
+
+    const TIPO_VEHICULO = {
+      '40': 'Turismo', '50': 'Motocicleta', '20': 'Furgoneta / Combi',
+      '21': 'Furgón derivado', '80': 'Tractor Agrícola', '81': 'Tractor de Obras',
+      '30': 'Camión / Furgón Heavy', '04': 'Ciclomotor 2 ruedas', '05': 'Ciclomotor 3 ruedas'
+    };
+
+    const PROPULSION_MAP = {
+      '0': 'Gasolina', '1': 'Diésel', '2': 'Eléctrico (BEV)',
+      '3': 'Otros / Híbrido No Enchufable', '6': 'GLP', '7': 'GNC'
+    };
+
+    const CLAVE_TRAMITE = {
+      '1': 'Matriculación Ordinaria', '2': 'Transferencia', '6': 'Baja Temporal'
+    };
+
+    // Variables de Estado
+    let rawRecords = [];
+    let filteredRecords = [];
+    let groupedRecords = []; 
+    let groupMode = 'none'; 
+    let currentPage = 1;
+    let pageSize = 25;
+    let sortColumn = 'fecMatricula';
+    let sortAsc = false;
+
+    // Referencias Gráficos
+    let chartProp = null;
+    let chartBrand = null;
+    let chartModel = null;
+    let chartType = null;
+
+    // Elementos DOM
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('fileInput');
+    const loadingOverlay = document.getElementById('loadingOverlay');
+    const kpiDashboard = document.getElementById('kpiDashboard');
+    const chartsSection = document.getElementById('chartsSection');
+    const filterSection = document.getElementById('filterSection');
+    const tableSection = document.getElementById('tableSection');
+
+    dropZone.addEventListener('click', () => fileInput.click());
+
+    ['dragenter', 'dragover'].forEach(eventName => {
+      dropZone.addEventListener(eventName, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dropZone.classList.add('drag-over');
+      }, false);
+    });
+
+    ['dragleave', 'drop'].forEach(eventName => {
+      dropZone.addEventListener(eventName, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dropZone.classList.remove('drag-over');
+      }, false);
+    });
+
+    dropZone.addEventListener('drop', (e) => {
+      const dt = e.dataTransfer;
+      const files = dt.files;
+      if (files.length > 0) {
+        processFile(files[0]);
+      }
+    });
+
+    fileInput.addEventListener('change', (e) => {
+      if (e.target.files.length > 0) {
+        processFile(e.target.files[0]);
+      }
+    });
+
+    document.getElementById('btnSampleData').addEventListener('click', loadSampleData);
+
+    // Evento de Descarga Rápida desde la DGT (Estructura de Directorio y Fichero Oficial)
+    document.getElementById('btnDownloadDGT').addEventListener('click', () => {
+      const monthPadded = document.getElementById('downloadMonth').value; // ej: "05"
+      const monthRaw = parseInt(monthPadded, 10).toString();             // ej: "5"
+      const year = document.getElementById('downloadYear').value;         // ej: "2026"
+      
+      // Estructura oficial DGT: /microdatos/salida/AAAA/M/vehiculos/matriculaciones/export_mensual_mat_AAAAMM.zip
+      const dgtUrl = `https://www.dgt.es/microdatos/salida/${year}/${monthRaw}/vehiculos/matriculaciones/export_mensual_mat_${year}${monthPadded}.zip`;
+      window.open(dgtUrl, '_blank');
+    });
+
+    // Control de Botones de Agrupación
+    function setGroupMode(mode) {
+      groupMode = mode;
+      document.querySelectorAll('.group-btn').forEach(btn => {
+        btn.classList.remove('bg-blue-600', 'text-white');
+        btn.classList.add('text-slate-400');
+      });
+
+      if (mode === 'none') {
+        document.getElementById('btnGroupNone').classList.add('bg-blue-600', 'text-white');
+        sortColumn = 'fecMatricula';
+      } else if (mode === 'marca') {
+        document.getElementById('btnGroupMarca').classList.add('bg-blue-600', 'text-white');
+        sortColumn = 'count';
+      } else if (mode === 'modelo') {
+        document.getElementById('btnGroupModelo').classList.add('bg-blue-600', 'text-white');
+        sortColumn = 'count';
+      }
+
+      currentPage = 1;
+      sortAsc = false;
+      updateDashboard();
+    }
+
+    document.getElementById('btnGroupNone').addEventListener('click', () => setGroupMode('none'));
+    document.getElementById('btnGroupMarca').addEventListener('click', () => setGroupMode('marca'));
+    document.getElementById('btnGroupModelo').addEventListener('click', () => setGroupMode('modelo'));
+
+    // Filtro Excluir Scooters y Motos <=125cc
+    document.getElementById('chkExcludeScooters').addEventListener('change', applyFilters);
+
+    // Controles de Filtros
+    document.getElementById('filterText').addEventListener('input', applyFilters);
+    document.getElementById('filterTipo').addEventListener('change', applyFilters);
+    document.getElementById('filterPropulsion').addEventListener('change', applyFilters);
+    document.getElementById('filterEstado').addEventListener('change', applyFilters);
+    document.getElementById('filterTitular').addEventListener('change', applyFilters);
+    document.getElementById('filterProvincia').addEventListener('change', applyFilters);
+    document.getElementById('filterMarca').addEventListener('change', () => {
+      populateModeloDropdown();
+      applyFilters();
+    });
+    document.getElementById('filterModelo').addEventListener('change', applyFilters);
+    document.getElementById('btnResetFilters').addEventListener('click', resetFilters);
+
+    // Paginación
+    document.getElementById('pageSizeSelect').addEventListener('change', (e) => {
+      pageSize = parseInt(e.target.value, 10);
+      currentPage = 1;
+      renderTable();
+    });
+
+    document.getElementById('btnPrevPage').addEventListener('click', () => {
+      if (currentPage > 1) {
+        currentPage--;
+        renderTable();
+      }
+    });
+
+    document.getElementById('btnNextPage').addEventListener('click', () => {
+      const activeArray = groupMode !== 'none' ? groupedRecords : filteredRecords;
+      const maxPage = Math.ceil(activeArray.length / pageSize) || 1;
+      if (currentPage < maxPage) {
+        currentPage++;
+        renderTable();
+      }
+    });
+
+    // Botones de Exportación
+    document.getElementById('btnExportCSV').addEventListener('click', exportCSV);
+    document.getElementById('btnExportJSON').addEventListener('click', exportJSON);
+
+    function parseDGTLine(line, index) {
+      if (!line || line.length < 100) return null;
+
+      const getVal = (start, length) => {
+        if (line.length < start) return '';
+        return line.substring(start, start + length).trim();
+      };
+
+      const fecMatriculaRaw = getVal(0, 8);
+      const codClaseMat = getVal(8, 1);
+      const fecTramitacionRaw = getVal(9, 8);
+      const marca = getVal(17, 30);
+      const modelo = getVal(47, 22);
+      const codProcedencia = getVal(69, 1);
+      const bastidor = getVal(70, 21);
+      const codTipo = getVal(91, 2);
+      const codPropulsion = getVal(93, 1);
+      const cilindrada = getVal(94, 5);
+      const potenciaCVF = getVal(99, 6);
+      const tara = getVal(105, 6);
+      const pesoMax = getVal(111, 6);
+      const numPlazas = getVal(117, 3);
+      const localidad = getVal(128, 24);
+      const codProvinciaVeh = getVal(152, 2);
+      const codProvinciaMat = getVal(154, 2);
+      const claveTramite = getVal(156, 1);
+      const codigoPostal = getVal(165, 5);
+      const indNuevoUsado = getVal(178, 1);
+      const personaFisicaJuridica = getVal(179, 1);
+      const fabricante = getVal(214, 70);
+      const catVehiculoElectrico = getVal(321, 5);
+
+      const formatDate = (rawDate) => {
+        if (rawDate && rawDate.length === 8) {
+          const day = rawDate.substring(0, 2);
+          const month = rawDate.substring(2, 4);
+          const year = rawDate.substring(4, 8);
+          return `${year}-${month}-${day}`;
+        }
+        return rawDate;
+      };
+
+      let propDesc = PROPULSION_MAP[codPropulsion] || 'Desconocido';
+      let propCat = 'GASOLINA';
+
+      if (catVehiculoElectrico === 'BEV') {
+        propDesc = 'Eléctrico Puro (BEV)';
+        propCat = 'BEV';
+      } else if (catVehiculoElectrico === 'PHEV') {
+        propDesc = 'Híbrido Enchufable (PHEV)';
+        propCat = 'PHEV';
+      } else if (catVehiculoElectrico === 'HEV') {
+        propDesc = 'Híbrido No Enchufable (HEV)';
+        propCat = 'HEV';
+      } else {
+        if (codPropulsion === '0') propCat = 'GASOLINA';
+        else if (codPropulsion === '1') propCat = 'DIESEL';
+        else if (codPropulsion === '2') propCat = 'BEV';
+        else if (codPropulsion === '6') propCat = 'GLP';
+        else if (codPropulsion === '7') propCat = 'GNC';
+        else propCat = 'OTROS';
+      }
+
+      let tipoGroup = 'OTROS';
+      if (['40'].includes(codTipo)) tipoGroup = 'TURISMO';
+      else if (['50'].includes(codTipo)) tipoGroup = 'MOTOCICLETA';
+      else if (['20', '21'].includes(codTipo)) tipoGroup = 'FURGONETA';
+      else if (['30'].includes(codTipo)) tipoGroup = 'CAMION';
+      else if (['04', '05'].includes(codTipo)) tipoGroup = 'CICLOMOTOR';
+      else if (['80', '81'].includes(codTipo)) tipoGroup = 'TRACTOR';
+
+      return {
+        id: index + 1,
+        fecMatricula: formatDate(fecMatriculaRaw),
+        fecMatriculaRaw,
+        codClaseMat,
+        claseMatriculaDesc: CLASE_MATRICULA[codClaseMat] || codClaseMat,
+        fecTramitacion: formatDate(fecTramitacionRaw),
+        marca: marca || 'SIN MARCA',
+        modelo: modelo || 'SIN MODELO',
+        procedenciaDesc: PROCEDENCIA_ITV[codProcedencia] || codProcedencia,
+        bastidor,
+        codTipo,
+        tipoDesc: TIPO_VEHICULO[codTipo] || `Tipo ${codTipo}`,
+        tipoGroup,
+        codPropulsion,
+        propulsionDesc: propDesc,
+        propCat,
+        cilindrada: parseInt(cilindrada, 10) || 0,
+        potenciaCVF: parseFloat(potenciaCVF) || 0,
+        tara: parseInt(tara, 10) || 0,
+        pesoMax: parseInt(pesoMax, 10) || 0,
+        numPlazas: parseInt(numPlazas, 10) || 0,
+        localidad: localidad || 'DESCONOCIDA',
+        codProvinciaVeh: codProvinciaVeh || 'ND',
+        codProvinciaMat: codProvinciaMat || 'ND',
+        tramiteDesc: CLAVE_TRAMITE[claveTramite] || claveTramite,
+        codigoPostal,
+        indNuevoUsado: indNuevoUsado || 'N',
+        personaFisicaJuridica: personaFisicaJuridica || 'D',
+        fabricante: fabricante || marca,
+        catVehiculoElectrico: catVehiculoElectrico || 'N/A'
+      };
+    }
+
+    // Procesamiento con Soporte para Archivos ZIP y TXT
+    function processFile(file) {
+      loadingOverlay.classList.remove('hidden');
+
+      if (file.name.endsWith('.zip')) {
+        document.getElementById('loadingStatusText').textContent = 'Descomprimiendo archivo ZIP DGT...';
+        JSZip.loadAsync(file).then(zip => {
+          const txtFile = Object.keys(zip.files).find(name => name.endsWith('.txt') || name.endsWith('.dat'));
+          if (txtFile) {
+            zip.files[txtFile].async('string').then(text => {
+              const lines = text.split(/\r?\n/);
+              parseLinesAndInitialize(lines);
+            });
+          } else {
+            alert('No se encontró ningún archivo .txt de matriculaciones dentro del ZIP.');
+            loadingOverlay.classList.add('hidden');
+          }
+        }).catch(() => {
+          alert('Error al descomprimir el archivo ZIP.');
+          loadingOverlay.classList.add('hidden');
+        });
+      } else {
+        const reader = new FileReader();
+        reader.onload = function (e) {
+          const text = e.target.result;
+          const lines = text.split(/\r?\n/);
+          parseLinesAndInitialize(lines);
+        };
+        reader.readAsText(file);
+      }
+    }
+
+    function parseLinesAndInitialize(lines) {
+      rawRecords = [];
+      lines.forEach((line, index) => {
+        const parsed = parseDGTLine(line, index);
+        if (parsed) rawRecords.push(parsed);
+      });
+
+      if (rawRecords.length === 0) {
+        alert('No se pudieron parsear registros válidos. Verifica el formato del archivo DGT.');
+        loadingOverlay.classList.add('hidden');
+        return;
+      }
+
+      const sampleDate = rawRecords.find(r => r.fecMatricula && r.fecMatricula.length === 10);
+      if (sampleDate) {
+        const parts = sampleDate.fecMatricula.split('-');
+        if (parts.length === 3) {
+          document.getElementById('periodBadge').textContent = `Periodo ${parts[1]}/${parts[0]}`;
+          document.getElementById('kpiSubPeriod').textContent = `Matriculaciones ${parts[1]}/${parts[0]}`;
+        }
+      }
+
+      populateDropdowns();
+      
+      kpiDashboard.classList.remove('hidden');
+      chartsSection.classList.remove('hidden');
+      filterSection.classList.remove('hidden');
+      tableSection.classList.remove('hidden');
+      
+      document.getElementById('btnExportCSV').disabled = false;
+      document.getElementById('btnExportCSV').classList.remove('opacity-50', 'cursor-not-allowed');
+      document.getElementById('btnExportJSON').disabled = false;
+      document.getElementById('btnExportJSON').classList.remove('opacity-50', 'cursor-not-allowed');
+
+      loadingOverlay.classList.add('hidden');
+      applyFilters(); // Aplicar filtros iniciales
+    }
+
+    function populateDropdowns() {
+      const provinciaSelect = document.getElementById('filterProvincia');
+      const marcaSelect = document.getElementById('filterMarca');
+
+      provinciaSelect.innerHTML = '<option value="">Todas las Provincias</option>';
+      marcaSelect.innerHTML = '<option value="">Todas las Marcas</option>';
+
+      const provincias = [...new Set(rawRecords.map(r => r.codProvinciaVeh).filter(Boolean))].sort();
+      provincias.forEach(prov => {
+        const opt = document.createElement('option');
+        opt.value = prov;
+        opt.textContent = prov;
+        provinciaSelect.appendChild(opt);
+      });
+
+      const marcas = [...new Set(rawRecords.map(r => r.marca).filter(Boolean))].sort();
+      marcas.forEach(marca => {
+        const opt = document.createElement('option');
+        opt.value = marca;
+        opt.textContent = marca;
+        marcaSelect.appendChild(opt);
+      });
+
+      populateModeloDropdown();
+    }
+
+    function populateModeloDropdown() {
+      const modeloSelect = document.getElementById('filterModelo');
+      const selectedMarca = document.getElementById('filterMarca').value;
+
+      modeloSelect.innerHTML = '<option value="">Todos los Modelos</option>';
+
+      let recordsForModels = rawRecords;
+      if (selectedMarca) {
+        recordsForModels = rawRecords.filter(r => r.marca === selectedMarca);
+      }
+
+      const modelos = [...new Set(recordsForModels.map(r => r.modelo).filter(Boolean))].sort();
+      modelos.forEach(mod => {
+        const opt = document.createElement('option');
+        opt.value = mod;
+        opt.textContent = mod;
+        modeloSelect.appendChild(opt);
+      });
+    }
+
+    function applyFilters() {
+      const query = document.getElementById('filterText').value.toLowerCase().trim();
+      const tipo = document.getElementById('filterTipo').value;
+      const prop = document.getElementById('filterPropulsion').value;
+      const estado = document.getElementById('filterEstado').value;
+      const titular = document.getElementById('filterTitular').value;
+      const provincia = document.getElementById('filterProvincia').value;
+      const marca = document.getElementById('filterMarca').value;
+      const modelo = document.getElementById('filterModelo').value;
+      const excludeScooters = document.getElementById('chkExcludeScooters').checked;
+
+      filteredRecords = rawRecords.filter(r => {
+        // Excluir ÚNICAMENTE Ciclomotores o Motocicletas de cilindrada <= 125 cc
+        if (excludeScooters) {
+          const isCiclomotor = ['04', '05'].includes(r.codTipo) || r.codClaseMat === '6' || r.tipoGroup === 'CICLOMOTOR';
+          const isMoto = r.tipoGroup === 'MOTOCICLETA' || r.codTipo === '50';
+          const is125orLess = r.cilindrada > 0 && r.cilindrada <= 125;
+
+          if (isCiclomotor || (isMoto && is125orLess)) {
+            return false;
+          }
+        }
+
+        if (query) {
+          const matchText = `${r.marca} ${r.modelo} ${r.localidad} ${r.bastidor} ${r.fabricante}`.toLowerCase();
+          if (!matchText.includes(query)) return false;
+        }
+        if (tipo && r.tipoGroup !== tipo) return false;
+        if (prop && r.propCat !== prop) return false;
+        if (estado && r.indNuevoUsado !== estado) return false;
+        if (titular && r.personaFisicaJuridica !== titular) return false;
+        if (provincia && r.codProvinciaVeh !== provincia) return false;
+        if (marca && r.marca !== marca) return false;
+        if (modelo && r.modelo !== modelo) return false;
+        return true;
+      });
+
+      currentPage = 1;
+      updateDashboard();
+    }
+
+    function resetFilters() {
+      document.getElementById('filterText').value = '';
+      document.getElementById('filterTipo').value = 'TURISMO'; // Valor por defecto
+      document.getElementById('filterPropulsion').value = '';
+      document.getElementById('filterEstado').value = '';
+      document.getElementById('filterTitular').value = '';
+      document.getElementById('filterProvincia').value = '';
+      document.getElementById('filterMarca').value = '';
+      document.getElementById('chkExcludeScooters').checked = false;
+      populateModeloDropdown();
+      document.getElementById('filterModelo').value = '';
+      
+      applyFilters();
+    }
+
+    function sortTable(column) {
+      if (sortColumn === column) {
+        sortAsc = !sortAsc;
+      } else {
+        sortColumn = column;
+        sortAsc = true;
+      }
+
+      const targetArray = groupMode !== 'none' ? groupedRecords : filteredRecords;
+
+      targetArray.sort((a, b) => {
+        let valA = a[column];
+        let valB = b[column];
+
+        if (typeof valA === 'string') valA = valA.toLowerCase();
+        if (typeof valB === 'string') valB = valB.toLowerCase();
+
+        if (valA < valB) return sortAsc ? -1 : 1;
+        if (valA > valB) return sortAsc ? 1 : -1;
+        return 0;
+      });
+
+      renderTable();
+    }
+
+    function updateDashboard() {
+      const total = filteredRecords.length;
+      document.getElementById('filterCountBadge').textContent = `${total.toLocaleString()} / ${rawRecords.length.toLocaleString()}`;
+      document.getElementById('kpiTotalCount').textContent = total.toLocaleString();
+
+      if (total === 0) {
+        document.getElementById('kpiNewPct').textContent = '0%';
+        document.getElementById('kpiUsedPct').textContent = '0% us';
+        document.getElementById('kpiNewCountText').textContent = '0 Nuevos / 0 Usados';
+        document.getElementById('kpiEcoPct').textContent = '0%';
+        document.getElementById('kpiEcoCountText').textContent = '0 Cero/ECO';
+        document.getElementById('kpiPersonaFisicaPct').textContent = '0%';
+        document.getElementById('kpiPersonaFisicaText').textContent = '0 Particulares';
+        groupedRecords = [];
+        renderTable();
+        renderCharts({});
+        return;
+      }
+
+      const nuevos = filteredRecords.filter(r => r.indNuevoUsado === 'N').length;
+      const usados = total - nuevos;
+      const newPct = ((nuevos / total) * 100).toFixed(1);
+      const usedPct = ((usados / total) * 100).toFixed(1);
+
+      document.getElementById('kpiNewPct').textContent = `${newPct}%`;
+      document.getElementById('kpiUsedPct').textContent = `${usedPct}% us`;
+      document.getElementById('kpiNewCountText').textContent = `${nuevos.toLocaleString()} Nuevos / ${usados.toLocaleString()} Usados`;
+
+      const ecoCount = filteredRecords.filter(r => ['BEV', 'PHEV', 'HEV'].includes(r.propCat)).length;
+      const ecoPct = ((ecoCount / total) * 100).toFixed(1);
+      document.getElementById('kpiEcoPct').textContent = `${ecoPct}%`;
+      document.getElementById('kpiEcoCountText').textContent = `${ecoCount.toLocaleString()} Vehículos Cero/ECO`;
+
+      const fisicas = filteredRecords.filter(r => r.personaFisicaJuridica === 'D').length;
+      const fisicaPct = ((fisicas / total) * 100).toFixed(1);
+      document.getElementById('kpiPersonaFisicaPct').textContent = `${fisicaPct}%`;
+      document.getElementById('kpiPersonaFisicaText').textContent = `${fisicas.toLocaleString()} Particular / ${total - fisicas} Empresa`;
+
+      // Matriz Agrupada
+      const groupMap = {};
+      filteredRecords.forEach(r => {
+        const key = groupMode === 'marca' ? r.marca : `${r.marca}___${r.modelo}`;
+        if (!groupMap[key]) {
+          groupMap[key] = {
+            marca: r.marca,
+            modelo: groupMode === 'marca' ? '-' : r.modelo,
+            count: 0,
+            nuevos: 0,
+            usados: 0,
+            bevCount: 0
+          };
+        }
+        groupMap[key].count++;
+        if (r.indNuevoUsado === 'N') groupMap[key].nuevos++;
+        else groupMap[key].usados++;
+        if (['BEV', 'PHEV', 'HEV'].includes(r.propCat)) groupMap[key].bevCount++;
+      });
+
+      groupedRecords = Object.values(groupMap).map(m => {
+        return {
+          ...m,
+          pctTotal: total > 0 ? ((m.count / total) * 100).toFixed(2) : '0.00'
+        };
+      });
+
+      if (groupMode !== 'none' && sortColumn === 'count') {
+        groupedRecords.sort((a, b) => sortAsc ? a.count - b.count : b.count - a.count);
+      }
+
+      renderTable();
+      renderCharts(calculateAggregations());
+    }
+
+    function calculateAggregations() {
+      const propulsionCounts = {};
+      const brandCounts = {};
+      const modelCounts = {};
+      const typeCounts = {};
+
+      filteredRecords.forEach(r => {
+        propulsionCounts[r.propCat] = (propulsionCounts[r.propCat] || 0) + 1;
+        brandCounts[r.marca] = (brandCounts[r.marca] || 0) + 1;
+        
+        const fullModelName = `${r.marca} ${r.modelo}`;
+        modelCounts[fullModelName] = (modelCounts[fullModelName] || 0) + 1;
+        
+        typeCounts[r.tipoGroup] = (typeCounts[r.tipoGroup] || 0) + 1;
+      });
+
+      return { propulsionCounts, brandCounts, modelCounts, typeCounts };
+    }
+
+    function renderCharts({ propulsionCounts = {}, brandCounts = {}, modelCounts = {}, typeCounts = {} }) {
+      const totalFiltered = filteredRecords.length;
+
+      const getTooltipWithPct = (context) => {
+        const value = context.parsed.y !== undefined ? context.parsed.y : context.parsed;
+        const pct = totalFiltered > 0 ? ((value / totalFiltered) * 100).toFixed(1) : 0;
+        return `${context.label}: ${value} unid. (${pct}%)`;
+      };
+
+      const commonPlugins = {
+        legend: {
+          labels: { color: '#94a3b8', font: { size: 9 } }
+        },
+        tooltip: {
+          callbacks: { label: getTooltipWithPct }
+        }
+      };
+
+      // 1. Chart Propulsion
+      const propCtx = document.getElementById('chartPropulsion').getContext('2d');
+      if (chartProp) chartProp.destroy();
+
+      chartProp = new Chart(propCtx, {
+        type: 'doughnut',
+        data: {
+          labels: Object.keys(propulsionCounts),
+          datasets: [{
+            data: Object.values(propulsionCounts),
+            backgroundColor: ['#3b82f6', '#10b981', '#06b6d4', '#8b5cf6', '#f59e0b', '#ec4899', '#64748b'],
+            borderWidth: 0
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            ...commonPlugins,
+            legend: { position: 'right', labels: { color: '#94a3b8', font: { size: 8 } } }
+          }
+        }
+      });
+
+      // 2. Chart Top Brands
+      const sortedBrands = Object.entries(brandCounts).sort((a, b) => b[1] - a[1]).slice(0, 5);
+      const brandCtx = document.getElementById('chartBrands').getContext('2d');
+      if (chartBrand) chartBrand.destroy();
+
+      chartBrand = new Chart(brandCtx, {
+        type: 'bar',
+        data: {
+          labels: sortedBrands.map(b => b[0]),
+          datasets: [{
+            label: 'Matriculaciones',
+            data: sortedBrands.map(b => b[1]),
+            backgroundColor: '#3b82f6',
+            borderRadius: 6
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            x: { ticks: { color: '#94a3b8', font: { size: 8 } }, grid: { display: false } },
+            y: { ticks: { color: '#94a3b8', font: { size: 8 } }, grid: { color: '#1e293b' } }
+          },
+          plugins: {
+            ...commonPlugins,
+            legend: { display: false }
+          }
+        }
+      });
+
+      // 3. Chart Top Models
+      const sortedModels = Object.entries(modelCounts).sort((a, b) => b[1] - a[1]).slice(0, 5);
+      const modelCtx = document.getElementById('chartModels').getContext('2d');
+      if (chartModel) chartModel.destroy();
+
+      chartModel = new Chart(modelCtx, {
+        type: 'bar',
+        data: {
+          labels: sortedModels.map(m => m[0]),
+          datasets: [{
+            label: 'Matriculaciones',
+            data: sortedModels.map(m => m[1]),
+            backgroundColor: '#a855f7',
+            borderRadius: 6
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          indexAxis: 'y',
+          scales: {
+            x: { ticks: { color: '#94a3b8', font: { size: 8 } }, grid: { color: '#1e293b' } },
+            y: { ticks: { color: '#94a3b8', font: { size: 8 } }, grid: { display: false } }
+          },
+          plugins: {
+            ...commonPlugins,
+            legend: { display: false }
+          }
+        }
+      });
+
+      // 4. Chart Vehicle Types
+      const typeCtx = document.getElementById('chartTypes').getContext('2d');
+      if (chartType) chartType.destroy();
+
+      chartType = new Chart(typeCtx, {
+        type: 'pie',
+        data: {
+          labels: Object.keys(typeCounts),
+          datasets: [{
+            data: Object.values(typeCounts),
+            backgroundColor: ['#10b981', '#f59e0b', '#6366f1', '#ec4899', '#14b8a6', '#64748b'],
+            borderWidth: 0
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            ...commonPlugins,
+            legend: { position: 'right', labels: { color: '#94a3b8', font: { size: 8 } } }
+          }
+        }
+      });
+    }
+
+    function renderTable() {
+      const thead = document.getElementById('tableHead');
+      const tbody = document.getElementById('tableBody');
+      tbody.innerHTML = '';
+
+      if (groupMode === 'none') {
+        // VISTA DETALLE
+        thead.innerHTML = `
+          <tr>
+            <th class="px-3 py-2.5 cursor-pointer hover:text-white transition-colors" onclick="sortTable('fecMatricula')">
+              Fecha <i class="fa-solid fa-sort text-[10px] ml-1"></i>
+            </th>
+            <th class="px-3 py-2.5 cursor-pointer hover:text-white transition-colors" onclick="sortTable('marca')">
+              Marca <i class="fa-solid fa-sort text-[10px] ml-1"></i>
+            </th>
+            <th class="px-3 py-2.5 cursor-pointer hover:text-white transition-colors" onclick="sortTable('modelo')">
+              Modelo <i class="fa-solid fa-sort text-[10px] ml-1"></i>
+            </th>
+            <th class="px-3 py-2.5 cursor-pointer hover:text-white transition-colors" onclick="sortTable('tipoDesc')">
+              Tipo <i class="fa-solid fa-sort text-[10px] ml-1"></i>
+            </th>
+            <th class="px-3 py-2.5 cursor-pointer hover:text-white transition-colors" onclick="sortTable('propulsionDesc')">
+              Propulsión <i class="fa-solid fa-sort text-[10px] ml-1"></i>
+            </th>
+            <th class="px-3 py-2.5 text-right">Cil / CVF</th>
+            <th class="px-3 py-2.5 text-center">N/U</th>
+            <th class="px-3 py-2.5 text-center">Titular</th>
+            <th class="px-3 py-2.5">Provincia</th>
+            <th class="px-3 py-2.5 text-center">Acción</th>
+          </tr>
+        `;
+
+        if (filteredRecords.length === 0) {
+          tbody.innerHTML = `
+            <tr>
+              <td colspan="10" class="px-4 py-8 text-center text-slate-500 text-xs sm:text-sm">
+                No se encontraron matriculaciones que coincidan con los filtros aplicados.
+              </td>
+            </tr>
+          `;
+          document.getElementById('pageInfoText').textContent = 'Página 0 de 0';
+          document.getElementById('btnPrevPage').disabled = true;
+          document.getElementById('btnNextPage').disabled = true;
+          return;
+        }
+
+        const totalPages = Math.ceil(filteredRecords.length / pageSize) || 1;
+        if (currentPage > totalPages) currentPage = totalPages;
+
+        const startIndex = (currentPage - 1) * pageSize;
+        const pageData = filteredRecords.slice(startIndex, startIndex + pageSize);
+
+        pageData.forEach(r => {
+          const tr = document.createElement('tr');
+          tr.className = 'hover:bg-slate-800/40 transition-colors';
+
+          let propBadgeClass = 'bg-slate-800 text-slate-300';
+          if (r.propCat === 'BEV') propBadgeClass = 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30';
+          else if (r.propCat === 'PHEV') propBadgeClass = 'bg-teal-500/10 text-teal-300 border border-teal-500/30';
+          else if (r.propCat === 'HEV') propBadgeClass = 'bg-cyan-500/10 text-cyan-300 border border-cyan-500/30';
+          else if (r.propCat === 'GASOLINA') propBadgeClass = 'bg-blue-500/10 text-blue-300 border border-blue-500/30';
+          else if (r.propCat === 'DIESEL') propBadgeClass = 'bg-amber-500/10 text-amber-300 border border-amber-500/30';
+
+          tr.innerHTML = `
+            <td class="px-3 py-2.5 font-mono text-slate-300 whitespace-nowrap">${r.fecMatricula}</td>
+            <td class="px-3 py-2.5 font-semibold text-white whitespace-nowrap">${r.marca}</td>
+            <td class="px-3 py-2.5 text-slate-300 whitespace-nowrap">${r.modelo}</td>
+            <td class="px-3 py-2.5 text-slate-400 whitespace-nowrap">${r.tipoDesc}</td>
+            <td class="px-3 py-2.5 whitespace-nowrap">
+              <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ${propBadgeClass}">
+                ${r.propulsionDesc}
+              </span>
+            </td>
+            <td class="px-3 py-2.5 text-right font-mono text-slate-400 whitespace-nowrap">${r.cilindrada > 0 ? r.cilindrada + ' cc' : '-'} / ${r.potenciaCVF} CVF</td>
+            <td class="px-3 py-2.5 text-center whitespace-nowrap">
+              <span class="px-1.5 py-0.5 rounded text-[10px] font-bold ${r.indNuevoUsado === 'N' ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' : 'bg-amber-950 text-amber-400 border border-amber-800'}">
+                ${r.indNuevoUsado}
+              </span>
+            </td>
+            <td class="px-3 py-2.5 text-center text-slate-400 font-semibold whitespace-nowrap">${r.personaFisicaJuridica === 'D' ? 'Física (D)' : 'Empresa (X)'}</td>
+            <td class="px-3 py-2.5 text-slate-300 whitespace-nowrap">${r.localidad} <span class="text-slate-500">(${r.codProvinciaVeh})</span></td>
+            <td class="px-3 py-2.5 text-center whitespace-nowrap">
+              <button onclick="openDetailModal(${r.id})" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-blue-400 hover:text-blue-300 rounded text-xs transition-colors">
+                <i class="fa-solid fa-eye"></i>
+              </button>
+            </td>
+          `;
+          tbody.appendChild(tr);
+        });
+
+        document.getElementById('pageInfoText').textContent = `Página ${currentPage} de ${totalPages}`;
+        document.getElementById('btnPrevPage').disabled = currentPage === 1;
+        document.getElementById('btnNextPage').disabled = currentPage === totalPages;
+
+      } else {
+        // VISTA AGRUPADA (MARCA O MODELO)
+        const isMarca = groupMode === 'marca';
+        thead.innerHTML = `
+          <tr>
+            <th class="px-3 py-2.5 cursor-pointer hover:text-white transition-colors" onclick="sortTable('marca')">
+              Marca <i class="fa-solid fa-sort text-[10px] ml-1"></i>
+            </th>
+            ${!isMarca ? `
+            <th class="px-3 py-2.5 cursor-pointer hover:text-white transition-colors" onclick="sortTable('modelo')">
+              Modelo <i class="fa-solid fa-sort text-[10px] ml-1"></i>
+            </th>` : ''}
+            <th class="px-3 py-2.5 text-center cursor-pointer hover:text-white transition-colors" onclick="sortTable('count')">
+              Unidades <i class="fa-solid fa-sort text-[10px] ml-1"></i>
+            </th>
+            <th class="px-3 py-2.5 text-center cursor-pointer hover:text-white transition-colors" onclick="sortTable('pctTotal')">
+              % Cuota <i class="fa-solid fa-sort text-[10px] ml-1"></i>
+            </th>
+            <th class="px-3 py-2.5 text-center">Nuevos / Usados</th>
+            <th class="px-3 py-2.5 text-center">Cero / ECO</th>
+          </tr>
+        `;
+
+        if (groupedRecords.length === 0) {
+          tbody.innerHTML = `
+            <tr>
+              <td colspan="${isMarca ? '5' : '6'}" class="px-4 py-8 text-center text-slate-500 text-xs sm:text-sm">
+                No hay datos agrupados para los filtros seleccionados.
+              </td>
+            </tr>
+          `;
+          document.getElementById('pageInfoText').textContent = 'Página 0 de 0';
+          document.getElementById('btnPrevPage').disabled = true;
+          document.getElementById('btnNextPage').disabled = true;
+          return;
+        }
+
+        const totalPages = Math.ceil(groupedRecords.length / pageSize) || 1;
+        if (currentPage > totalPages) currentPage = totalPages;
+
+        const startIndex = (currentPage - 1) * pageSize;
+        const pageData = groupedRecords.slice(startIndex, startIndex + pageSize);
+
+        pageData.forEach(g => {
+          const tr = document.createElement('tr');
+          tr.className = 'hover:bg-slate-800/40 transition-colors';
+
+          tr.innerHTML = `
+            <td class="px-3 py-2.5 font-bold text-white whitespace-nowrap">${g.marca}</td>
+            ${!isMarca ? `<td class="px-3 py-2.5 font-semibold text-blue-300 whitespace-nowrap">${g.modelo}</td>` : ''}
+            <td class="px-3 py-2.5 text-center font-bold text-base text-emerald-400 font-mono whitespace-nowrap">${g.count.toLocaleString()}</td>
+            <td class="px-3 py-2.5 text-center whitespace-nowrap">
+              <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-bold bg-blue-950 text-blue-400 border border-blue-800">
+                ${g.pctTotal}%
+              </span>
+            </td>
+            <td class="px-3 py-2.5 text-center text-slate-300 whitespace-nowrap">
+              <span class="text-emerald-400 font-semibold">${g.nuevos} N</span> / <span class="text-amber-400 font-semibold">${g.usados} U</span>
+            </td>
+            <td class="px-3 py-2.5 text-center font-semibold text-teal-300 whitespace-nowrap">
+              ${g.bevCount > 0 ? `${g.bevCount} veh.` : '<span class="text-slate-600">-</span>'}
+            </td>
+          `;
+          tbody.appendChild(tr);
+        });
+
+        document.getElementById('pageInfoText').textContent = `Página ${currentPage} de ${totalPages}`;
+        document.getElementById('btnPrevPage').disabled = currentPage === 1;
+        document.getElementById('btnNextPage').disabled = currentPage === totalPages;
+      }
+    }
+
+    function openDetailModal(id) {
+      const record = rawRecords.find(r => r.id === id);
+      if (!record) return;
+
+      document.getElementById('modalTitle').textContent = `${record.marca} ${record.modelo}`;
+      document.getElementById('modalSubTitle').textContent = `Registro ID: ${record.id} - Matriculado el ${record.fecMatricula}`;
+
+      const modalContent = document.getElementById('modalContent');
+      modalContent.innerHTML = `
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+          <div class="bg-slate-950 p-3 sm:p-3.5 rounded-xl border border-slate-800 space-y-1.5">
+            <h4 class="font-bold text-blue-400 uppercase text-[10px] sm:text-[11px] tracking-wider border-b border-slate-800 pb-1">Identificación del Vehículo</h4>
+            <div><span class="text-slate-500">Bastidor (VIN):</span> <span class="font-mono text-slate-200 select-all font-semibold break-all">${record.bastidor}</span></div>
+            <div><span class="text-slate-500">Marca ITV:</span> <span class="text-slate-200">${record.marca}</span></div>
+            <div><span class="text-slate-500">Modelo ITV:</span> <span class="text-slate-200">${record.modelo}</span></div>
+            <div><span class="text-slate-500">Fabricante:</span> <span class="text-slate-200">${record.fabricante}</span></div>
+            <div><span class="text-slate-500">Procedencia:</span> <span class="text-slate-200">${record.procedenciaDesc}</span></div>
+          </div>
+
+          <div class="bg-slate-950 p-3 sm:p-3.5 rounded-xl border border-slate-800 space-y-1.5">
+            <h4 class="font-bold text-emerald-400 uppercase text-[10px] sm:text-[11px] tracking-wider border-b border-slate-800 pb-1">Especificaciones Técnicas</h4>
+            <div><span class="text-slate-500">Tipo de Vehículo:</span> <span class="text-slate-200">${record.tipoDesc} (Cód: ${record.codTipo})</span></div>
+            <div><span class="text-slate-500">Propulsión:</span> <span class="text-slate-200">${record.propulsionDesc}</span></div>
+            <div><span class="text-slate-500">Cat. Eléctrica:</span> <span class="text-slate-200 font-mono">${record.catVehiculoElectrico}</span></div>
+            <div><span class="text-slate-500">Cilindrada / Pot:</span> <span class="text-slate-200">${record.cilindrada} cc / ${record.potenciaCVF} CVF</span></div>
+            <div><span class="text-slate-500">Tara / MMA:</span> <span class="text-slate-200">${record.tara} kg / ${record.pesoMax} kg</span></div>
+            <div><span class="text-slate-500">Plazas:</span> <span class="text-slate-200">${record.numPlazas}</span></div>
+          </div>
+
+          <div class="sm:col-span-2 bg-slate-950 p-3 sm:p-3.5 rounded-xl border border-slate-800 space-y-1.5">
+            <h4 class="font-bold text-purple-400 uppercase text-[10px] sm:text-[11px] tracking-wider border-b border-slate-800 pb-1">Datos Administrativos</h4>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-1.5 sm:gap-2">
+              <div><span class="text-slate-500">Fecha Tramitación:</span> <span class="text-slate-200">${record.fecTramitacion}</span></div>
+              <div><span class="text-slate-500">Clase Matrícula:</span> <span class="text-slate-200">${record.claseMatriculaDesc}</span></div>
+              <div><span class="text-slate-500">Estado:</span> <span class="text-slate-200 font-bold">${record.indNuevoUsado === 'N' ? 'Nuevo' : 'Usado'}</span></div>
+              <div><span class="text-slate-500">Titularidad:</span> <span class="text-slate-200">${record.personaFisicaJuridica === 'D' ? 'Persona Física (D)' : 'Empresa (X)'}</span></div>
+              <div><span class="text-slate-500">Localidad:</span> <span class="text-slate-200">${record.localidad} (${record.codigoPostal})</span></div>
+              <div><span class="text-slate-500">Provincia Veh / Mat:</span> <span class="text-slate-200">${record.codProvinciaVeh} / ${record.codProvinciaMat}</span></div>
+            </div>
+          </div>
+        </div>
+      `;
+
+      document.getElementById('detailModal').classList.remove('hidden');
+    }
+
+    function closeModal() {
+      document.getElementById('detailModal').classList.add('hidden');
+    }
+
+    function exportCSV() {
+      if (filteredRecords.length === 0) return;
+
+      if (groupMode === 'none') {
+        const headers = ['Fecha_Matricula', 'Marca', 'Modelo', 'Tipo', 'Propulsion', 'Cilindrada', 'Potencia_CVF', 'Estado', 'Titular', 'Localidad', 'Provincia', 'Bastidor'];
+        const rows = filteredRecords.map(r => [
+          r.fecMatricula,
+          `"${r.marca.replace(/"/g, '""')}"`,
+          `"${r.modelo.replace(/"/g, '""')}"`,
+          `"${r.tipoDesc}"`,
+          `"${r.propulsionDesc}"`,
+          r.cilindrada,
+          r.potenciaCVF,
+          r.indNuevoUsado,
+          r.personaFisicaJuridica,
+          `"${r.localidad}"`,
+          r.codProvinciaVeh,
+          r.bastidor
+        ]);
+
+        const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement('a');
+        link.setAttribute('href', encodedUri);
+        link.setAttribute('download', 'matriculaciones_DGT_filtrado.csv');
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      } else {
+        const headers = groupMode === 'marca' ? ['Marca', 'Total_Unidades', 'Porcentaje_Total', 'Nuevos', 'Usados', 'Electrificados_ECO'] : ['Marca', 'Modelo', 'Total_Unidades', 'Porcentaje_Total', 'Nuevos', 'Usados', 'Electrificados_ECO'];
+        const rows = groupedRecords.map(g => {
+          if (groupMode === 'marca') {
+            return [
+              `"${g.marca.replace(/"/g, '""')}"`,
+              g.count,
+              `"${g.pctTotal}%"`,
+              g.nuevos,
+              g.usados,
+              g.bevCount
+            ];
+          } else {
+            return [
+              `"${g.marca.replace(/"/g, '""')}"`,
+              `"${g.modelo.replace(/"/g, '""')}"`,
+              g.count,
+              `"${g.pctTotal}%"`,
+              g.nuevos,
+              g.usados,
+              g.bevCount
+            ];
+          }
+        });
+
+        const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement('a');
+        link.setAttribute('href', encodedUri);
+        link.setAttribute('download', `matriculaciones_DGT_agrupado_${groupMode}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }
+    }
+
+    function exportJSON() {
+      if (filteredRecords.length === 0) return;
+      const exportData = groupMode !== 'none' ? groupedRecords : filteredRecords;
+
+      const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(exportData, null, 2));
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.setAttribute('href', dataStr);
+      downloadAnchor.setAttribute('download', groupMode !== 'none' ? `matriculaciones_DGT_agrupado_${groupMode}.json` : 'matriculaciones_DGT_filtrado.json');
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.removeChild(downloadAnchor);
+    }
+
+    function loadSampleData() {
+      loadingOverlay.classList.remove('hidden');
+      document.getElementById('loadingStatusText').textContent = 'Generando muestra de matriculaciones DGT...';
+
+      setTimeout(() => {
+        const sampleBrands = [
+          { marca: 'TOYOTA', modelo: 'COROLLA', fab: 'TOYOTA MOTOR EUROPE', prop: '3', catElec: 'HEV', tipo: '40', cil: '1798', pot: '10.50' },
+          { marca: 'TOYOTA', modelo: 'YARIS CROSS', fab: 'TOYOTA MOTOR EUROPE', prop: '3', catElec: 'HEV', tipo: '40', cil: '1490', pot: '09.20' },
+          { marca: 'TESLA', modelo: 'MODEL Y', fab: 'TESLA INC', prop: '2', catElec: 'BEV', tipo: '40', cil: '0000', pot: '18.20' },
+          { marca: 'TESLA', modelo: 'MODEL 3', fab: 'TESLA INC', prop: '2', catElec: 'BEV', tipo: '40', cil: '0000', pot: '17.10' },
+          { marca: 'HYUNDAI', modelo: 'TUCSON', fab: 'HYUNDAI MOTOR CZECH', prop: '0', catElec: 'PHEV', tipo: '40', cil: '1598', pot: '11.20' },
+          { marca: 'SEAT', modelo: 'IBIZA', fab: 'SEAT SA', prop: '0', catElec: '     ', tipo: '40', cil: '0999', pot: '08.10' },
+          { marca: 'SEAT', modelo: 'ARONA', fab: 'SEAT SA', prop: '0', catElec: '     ', tipo: '40', cil: '0999', pot: '08.50' },
+          { marca: 'VOLKSWAGEN', modelo: 'GOLF', fab: 'VOLKSWAGEN AG', prop: '1', catElec: '     ', tipo: '40', cil: '1968', pot: '13.20' },
+          { marca: 'BMW', modelo: 'iX1', fab: 'BMW AG', prop: '2', catElec: 'BEV', tipo: '40', cil: '0000', pot: '16.50' },
+          { marca: 'KIA', modelo: 'SPORTAGE', fab: 'KIA MOTORS', prop: '3', catElec: 'HEV', tipo: '40', cil: '1598', pot: '11.20' },
+          { marca: 'PEUGEOT', modelo: '2008', fab: 'STELLANTIS AUTOMOBILES', prop: '0', catElec: '     ', tipo: '40', cil: '1199', pot: '09.30' },
+          { marca: 'RENAULT', modelo: 'MEGANE E-TECH', fab: 'RENAULT SAS', prop: '2', catElec: 'BEV', tipo: '40', cil: '0000', pot: '15.00' },
+          { marca: 'MERCEDES-BENZ', modelo: 'GLC 300', fab: 'MERCEDES BENZ AG', prop: '1', catElec: 'PHEV', tipo: '40', cil: '1999', pot: '13.80' },
+          { marca: 'HONDA', modelo: 'SH125i', fab: 'HONDA MOTOR CO', prop: '0', catElec: '     ', tipo: '50', cil: '0125', pot: '03.20' },
+          { marca: 'YAMAHA', modelo: 'MT-07', fab: 'YAMAHA MOTOR CO', prop: '0', catElec: '     ', tipo: '50', cil: '0689', pot: '07.10' },
+          { marca: 'FORD', modelo: 'TRANSIT', fab: 'FORD MOTOR CO', prop: '1', catElec: '     ', tipo: '20', cil: '1995', pot: '13.50' }
+        ];
+
+        const provincias = ['M', 'B', 'SE', 'V', 'CT', 'MA', 'BI', 'Z', 'GC', 'AL'];
+        const localidades = ['MADRID', 'BARCELONA', 'SEVILLA', 'VALENCIA', 'CARTAGENA', 'MALAGA', 'BILBAO', 'ZARAGOZA', 'PALMA', 'ALICANTE'];
+
+        const lines = [];
+
+        for (let i = 0; i < 300; i++) {
+          const item = sampleBrands[Math.floor(Math.random() * sampleBrands.length)];
+          const day = String(Math.floor(Math.random() * 28) + 1).padStart(2, '0');
+          const month = String(Math.floor(Math.random() * 12) + 1).padStart(2, '0');
+          const fecMat = `${day}${month}2026`;
+          const claseMat = '0';
+          const fecTram = `${day}${month}2026`;
+          const marcaPadded = item.marca.padEnd(30, ' ');
+          const modeloPadded = item.modelo.padEnd(22, ' ');
+          const procedencia = Math.random() > 0.8 ? '3' : '0';
+          const bastidor = `VNK${Math.random().toString(36).substring(2, 12).toUpperCase()}`.padEnd(21, ' ');
+          const codTipo = item.tipo.padEnd(2, ' ');
+          const codProp = item.prop;
+          const cil = item.cil.padStart(5, '0');
+          const pot = item.pot.padStart(6, '0');
+          const tara = '001450';
+          const pesoMax = '001950';
+          const plazas = '005';
+          const locIdx = Math.floor(Math.random() * localidades.length);
+          const localidadPadded = localidades[locIdx].padEnd(24, ' ');
+          const provVeh = provincias[locIdx].padEnd(2, ' ');
+          const provMat = provVeh;
+          const claveTramite = '1';
+          const cp = '28001';
+          const nuevoUsado = Math.random() > 0.15 ? 'N' : 'U';
+          const titular = Math.random() > 0.4 ? 'D' : 'X';
+          const fabPadded = item.fab.padEnd(70, ' ');
+          const catElecPadded = item.catElec.padEnd(5, ' ');
+
+          let line = fecMat + claseMat + fecTram + marcaPadded + modeloPadded + procedencia + bastidor + codTipo + codProp + cil + pot + tara + pesoMax + plazas;
+          line = line.padEnd(128, ' ') + localidadPadded + provVeh + provMat + claveTramite;
+          line = line.padEnd(165, ' ') + cp;
+          line = line.padEnd(178, ' ') + nuevoUsado + titular;
+          line = line.padEnd(214, ' ') + fabPadded;
+          line = line.padEnd(321, ' ') + catElecPadded;
+
+          lines.push(line);
+        }
+
+        parseLinesAndInitialize(lines);
+      }, 300);
+    }
+  </script>
+</body>
+</html>
